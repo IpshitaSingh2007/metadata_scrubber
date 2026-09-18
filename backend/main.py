@@ -32,7 +32,11 @@ def summarize(fields):
 
 @app.route("/scrub", methods=["POST"])
 def scrub():
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
     file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
     file_bytes = file.read()
     metadata = extract(file_bytes, file.filename)
     metadata["fields"] = summarize(metadata["fields"])
