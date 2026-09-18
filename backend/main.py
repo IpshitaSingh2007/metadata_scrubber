@@ -7,34 +7,11 @@ from backend.extractors.image_exif import extract, strip, FIELD_INFO
 app = Flask(__name__)
 CORS(app)
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
 
-# ============================================================
-# HELPERS
-# ============================================================
-
 def map_fields_for_frontend(fields):
-    """
-    Convert the field shape from extract() to what the frontend expects.
-
-    extract() gives us:
-        {
-            "key": "GPS.GPSTimeStamp",
-            "label": "GPS timestamp",
-            "value": "14:27:07 UTC",
-            "risk": "low",
-            "category": "location",
-            "sensitive": False,
-            "message": "Reveals the time of the GPS fix",
-        }
-
-    Frontend needs BOTH value (the raw data) and message (the explanation),
-    shown as separate columns.
-    """
+  
     return [
         {
             "key": field["key"],
@@ -46,10 +23,6 @@ def map_fields_for_frontend(fields):
         for field in fields
     ]
 
-
-# ============================================================
-# ROUTES
-# ============================================================
 
 @app.route("/scrub", methods=["POST"])
 def scrub():
@@ -110,24 +83,19 @@ def download():
     except json.JSONDecodeError:
         keep = []
     
-    # Validate keep keys against known fields
     valid_keys = set(FIELD_INFO.keys())
     keep = [k for k in keep if k in valid_keys]  # Filter out invalid keys
-    
-    # Strip metadata
+
     try:
         cleaned_bytes = strip(file_bytes, file.filename, keep=keep)
     except ValueError as e:
-        # Handle unsupported formats
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": f"Failed to clean file: {str(e)}"}), 500
     
-    # Prepare download
     buffer = BytesIO(cleaned_bytes)
     buffer.seek(0)
     
-    # Determine output mimetype based on original format
     mimetype = "image/jpeg"  # Default
     if file.filename.lower().endswith(".png"):
         mimetype = "image/png"
@@ -139,10 +107,6 @@ def download():
         download_name=f"cleaned_{file.filename}"
     )
 
-
-# ============================================================
-# RUN
-# ============================================================
 
 if __name__ == "__main__":
     app.run(debug=True)
