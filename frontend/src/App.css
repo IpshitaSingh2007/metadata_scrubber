@@ -31,15 +31,12 @@ body {
 }
 
 .page {
-  max-width: 680px;
+  max-width: 760px;
   margin: 0 auto;
   padding: 28px 24px 60px;
 }
 
-/* ============================================================
-   HEADER
-   ============================================================ */
-
+/* TOP BAR */
 .topbar {
   display: flex;
   align-items: center;
@@ -82,10 +79,7 @@ body {
   stroke: var(--accent);
 }
 
-/* ============================================================
-   HERO
-   ============================================================ */
-
+/* HERO */
 .hero {
   text-align: center;
   margin-bottom: 28px;
@@ -112,10 +106,7 @@ body {
   line-height: 1.5;
 }
 
-/* ============================================================
-   SHARED CARD
-   ============================================================ */
-
+/* CARD */
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -124,10 +115,7 @@ body {
   padding: 4px;
 }
 
-/* ============================================================
-   UPLOAD / DROP ZONE
-   ============================================================ */
-
+/* DROP ZONE */
 .drop-zone {
   text-align: center;
   padding: 44px 24px;
@@ -185,10 +173,7 @@ body {
   cursor: pointer;
 }
 
-/* ============================================================
-   SELECTED FILE ROW
-   ============================================================ */
-
+/* FILE ROW */
 .file-row {
   display: flex;
   align-items: center;
@@ -252,10 +237,7 @@ body {
   color: var(--danger);
 }
 
-/* ============================================================
-   PROCESSING
-   ============================================================ */
-
+/* PROCESSING */
 .processing {
   text-align: center;
   padding: 52px 24px;
@@ -295,10 +277,7 @@ body {
   100% { width: 8%;  margin-left: 92%; }
 }
 
-/* ============================================================
-   BUTTONS
-   ============================================================ */
-
+/* BUTTONS */
 .primary-btn {
   width: 100%;
   margin-top: 16px;
@@ -341,10 +320,7 @@ body {
   text-align: center;
 }
 
-/* ============================================================
-   RESULTS SCREEN & PRESET SELECTOR
-   ============================================================ */
-
+/* RESULTS & PRESETS */
 .success-block {
   text-align: center;
   margin-bottom: 24px;
@@ -380,24 +356,40 @@ body {
   line-height: 1.5;
 }
 
-/* NEW: Preset Bar */
 .preset-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border);
   background: #fafafa;
   border-radius: calc(var(--radius) - 5px) calc(var(--radius) - 5px) 0 0;
 }
 
+.preset-text {
+  min-width: 0;
+  flex: 1;
+}
+
 .preset-label {
+  display: block;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.preset-blurb {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 .preset-select {
+  flex-shrink: 0;
+  max-width: 240px;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -437,8 +429,21 @@ body {
 }
 
 /* ============================================================
-   FIELD LIST + CHECKBOXES
+   FIELD LIST — 3 COLUMN GRID LAYOUT
+   Columns: checkbox | name+value | message | risk badge
    ============================================================ */
+
+.field-header-row {
+  display: grid;
+  grid-template-columns: 24px 1.3fr 1.6fr 90px;
+  gap: 14px;
+  padding: 4px 18px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
 
 .field-list {
   display: flex;
@@ -448,10 +453,11 @@ body {
 }
 
 .field-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 11px 10px;
+  display: grid;
+  grid-template-columns: 24px 1.3fr 1.6fr 90px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 10px;
   border-radius: 8px;
   border-left: 3px solid transparent;
   cursor: pointer;
@@ -463,13 +469,15 @@ body {
   background: var(--bg);
 }
 
-/* Checked = this field is being stripped out */
+/* Checked = marked for removal */
 .field-item:has(.field-checkbox:checked) {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
-/* Unchecked = user chose to preserve this field (Turns Green) */
+/* Unchecked = preserved */
+.field-item.is-kept,
 .field-item:has(.field-checkbox:not(:checked)) {
+  opacity: 1;
   background: var(--success-soft);
   border-left-color: var(--success);
 }
@@ -477,33 +485,60 @@ body {
 .field-checkbox {
   width: 17px;
   height: 17px;
-  margin: 2px 0 0;
   cursor: pointer;
   accent-color: var(--danger);
   flex-shrink: 0;
 }
 
-.field-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
+/* Column 1: name + value */
+.col-name {
   min-width: 0;
+  text-align: left;
 }
 
 .field-label {
   font-size: 13.5px;
   font-weight: 600;
   margin: 0 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  text-align: left;
 }
 
-.field-message {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
+.field-value {
   margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+  text-align: left;
   word-break: break-word;
+}
+
+.kept-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--success);
+  background: #d1fae5;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+/* Column 2: message */
+.col-message {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  text-align: left;
+  min-width: 0;
+}
+
+/* Column 3: risk badge */
+.col-risk {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .risk-badge {
@@ -514,6 +549,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .risk-high   { background: #fde3e3; color: #c22b2b; }
@@ -527,11 +563,8 @@ body {
   font-size: 13.5px;
 }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-
-@media (max-width: 480px) {
+/* RESPONSIVE */
+@media (max-width: 640px) {
   .page { padding: 20px 16px 48px; }
   .topbar { margin-bottom: 24px; }
   .hero-title { font-size: 24px; }
@@ -541,17 +574,32 @@ body {
   .file-name { max-width: 150px; }
   .primary-btn { padding: 14px; font-size: 14px; }
   .privacy-chip span { display: none; }
-  
+
   .preset-bar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: stretch;
   }
-  .preset-select { width: 100%; }
 
-  .field-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+  .preset-select {
+    max-width: none;
+    width: 100%;
+  }
+
+  .field-header-row {
+    display: none;
+  }
+
+  .field-item {
+    grid-template-columns: 20px 1fr;
+    row-gap: 6px;
+  }
+
+  .col-message {
+    grid-column: 2 / 3;
+  }
+
+  .col-risk {
+    grid-column: 2 / 3;
+    justify-content: flex-start;
   }
 }

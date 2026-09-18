@@ -13,20 +13,6 @@ from PIL.PngImagePlugin import PngInfo
 # ============================================================
 
 FIELD_INFO = {
-<<<<<<< HEAD
-    "GPS.GPSLatitude": {
-        "label": "GPS latitude",
-        "risk": "high",
-        "category": "location",
-        "sensitive": True,
-    },
-    "GPS.GPSLongitude": {
-        "label": "GPS longitude",
-        "risk": "high",
-        "category": "location",
-        "sensitive": True,
-    },
-=======
    "GPS.Coordinates": {
     "label": "GPS coordinates",
     "risk": "high",
@@ -34,7 +20,6 @@ FIELD_INFO = {
     "sensitive": True,
     "message": "This reveals your exact location",
 },
->>>>>>> ipshita_branch
     "GPS.GPSAltitude": {
     "label": "GPS altitude",
     "risk": "low",

@@ -412,6 +412,16 @@ function App() {
               </span>
             </div>
 
+            {/* ===== Column headers ===== */}
+            {totalFieldsCount > 0 && (
+              <div className="field-header-row">
+                <span></span>
+                <span>Field</span>
+                <span>What it reveals</span>
+                <span>Risk</span>
+              </div>
+            )}
+
             {totalFieldsCount === 0 ? (
               <div className="empty-fields">No metadata was found in this file.</div>
             ) : (
@@ -426,14 +436,23 @@ function App() {
                         checked={isWillBeRemoved}
                         onChange={() => toggleFieldRemoval(f.key)}
                       />
-                      <div className="field-content">
-                        <div>
-                          <p className="field-label">
-                            {f.label}
-                            {!isWillBeRemoved && <span className="kept-tag">preserved</span>}
-                          </p>
-                          <p className="field-message">{f.message}</p>
-                        </div>
+
+                      {/* COLUMN 1: Name + Value */}
+                      <div className="col-name">
+                        <p className="field-label">
+                          {f.label}
+                          {!isWillBeRemoved && <span className="kept-tag">preserved</span>}
+                        </p>
+                        {f.value && <p className="field-value">{f.value}</p>}
+                      </div>
+
+                      {/* COLUMN 2: Message / explanation */}
+                      <div className="col-message">
+                        {f.message || '—'}
+                      </div>
+
+                      {/* COLUMN 3: Risk badge */}
+                      <div className="col-risk">
                         <span className={`risk-badge risk-${(f.risk || 'low').toLowerCase()}`}>
                           {f.risk || 'LOW'}
                         </span>

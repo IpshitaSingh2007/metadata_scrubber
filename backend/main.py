@@ -19,23 +19,29 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
 
 def map_fields_for_frontend(fields):
     """
-    Convert the new field shape to what the frontend expects.
-    
-    New shape (from extract):
-        {"key": "GPS.GPSLatitude", "label": "...", "value": "37.774929 N", "risk": "high", ...}
-    
-    Frontend expects:
-        {"key": "GPS.GPSLatitude", "label": "...", "message": "37.774929 N", "risk": "high"}
+    Convert the field shape from extract() to what the frontend expects.
+
+    extract() gives us:
+        {
+            "key": "GPS.GPSTimeStamp",
+            "label": "GPS timestamp",
+            "value": "14:27:07 UTC",
+            "risk": "low",
+            "category": "location",
+            "sensitive": False,
+            "message": "Reveals the time of the GPS fix",
+        }
+
+    Frontend needs BOTH value (the raw data) and message (the explanation),
+    shown as separate columns.
     """
     return [
         {
             "key": field["key"],
             "label": field["label"],
-            "message": field["value"],  # Rename "value" → "message"
+            "value": field["value"],
+            "message": field["message"],
             "risk": field["risk"],
-            # Optional: include these if you want to use them later
-            # "category": field["category"],
-            # "sensitive": field["sensitive"],
         }
         for field in fields
     ]
