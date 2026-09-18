@@ -13,6 +13,7 @@ from PIL.PngImagePlugin import PngInfo
 # ============================================================
 
 FIELD_INFO = {
+<<<<<<< HEAD
     "GPS.GPSLatitude": {
         "label": "GPS latitude",
         "risk": "high",
@@ -25,53 +26,70 @@ FIELD_INFO = {
         "category": "location",
         "sensitive": True,
     },
+=======
+   "GPS.Coordinates": {
+    "label": "GPS coordinates",
+    "risk": "high",
+    "category": "location",
+    "sensitive": True,
+    "message": "This reveals your exact location",
+},
+>>>>>>> ipshita_branch
     "GPS.GPSAltitude": {
-        "label": "GPS altitude",
-        "risk": "low",
-        "category": "location",
-        "sensitive": False,
-    },
+    "label": "GPS altitude",
+    "risk": "low",
+    "category": "location",
+    "sensitive": False,
+    "message": "Reveals the elevation",
+},
     "GPS.GPSTimeStamp": {
         "label": "GPS timestamp",
         "risk": "low",
         "category": "location",
         "sensitive": False,
+        "message": "Reveals the time of the GPS fix",
     },
     "DateTimeOriginal": {
         "label": "Date/time photo taken",
         "risk": "medium",
         "category": "timestamp",
         "sensitive": False,
+        "message": "Reveals when the photo was taken",
     },
     "DateTimeDigitized": {
         "label": "Date/time digitized",
         "risk": "low",
         "category": "timestamp",
         "sensitive": False,
+        "message": "Reveals when the photo was digitized",
     },
     "Make": {
         "label": "Camera manufacturer",
         "risk": "medium",
         "category": "device",
         "sensitive": False,
+        "message": "Reveals the camera manufacturer",
     },
     "Model": {
         "label": "Camera model",
         "risk": "medium",
         "category": "device",
         "sensitive": False,
+        "message": "Reveals the camera model",
     },
     "LensModel": {
         "label": "Lens model",
         "risk": "low",
         "category": "device",
         "sensitive": False,
+        "message": "Reveals the lens model",
     },
     "SerialNumber": {
         "label": "Camera serial number",
         "risk": "high",
         "category": "device",
         "sensitive": True,
+        "message": "Reveals the camera serial number",
     },
     "Software": {
         "label": "Editing software used",
@@ -84,30 +102,42 @@ FIELD_INFO = {
         "risk": "high",
         "category": "identity",
         "sensitive": True,
+        "message": "Reveals the photographer's name",
     },
     "Copyright": {
         "label": "Copyright holder",
         "risk": "high",
         "category": "identity",
         "sensitive": True,
+        "message": "Reveals the copyright holder",
     },
     "EmbeddedThumbnail": {
         "label": "Embedded thumbnail image",
         "risk": "medium",
-        "category": "identity/technical",
+        "category": "identity",
         "sensitive": False,
+        "message": "Reveals the embedded thumbnail image",
+    },
+    "Software": {
+        "label": "Editing software used",
+        "risk": "low",
+        "category": "technical",
+        "sensitive": False,
+        "message": "Reveals the editing software used",
     },
     "PNG.tEXt": {
         "label": "PNG text metadata",
         "risk": "medium",
         "category": "technical",
         "sensitive": False,
+        "message": "Reveals the PNG text metadata",
     },
     "PNG.iTXt": {
         "label": "PNG international text metadata",
         "risk": "medium",
         "category": "technical",
         "sensitive": False,
+        "message": "Reveals the PNG international text metadata",
     },
 }
 
@@ -161,6 +191,7 @@ def _make_field(key: str, value) -> dict:
         "risk": info["risk"],
         "category": info["category"],
         "sensitive": info["sensitive"],
+        "message": info["message"],
     }
 
 
