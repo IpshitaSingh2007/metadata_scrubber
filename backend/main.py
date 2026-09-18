@@ -2,63 +2,141 @@ import json
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from io import BytesIO
-from backend.extractors.image_exif import extract, strip
+from backend.extractors.image_exif import extract, strip, FIELD_INFO
 
 app = Flask(__name__)
 CORS(app)
 
-RISK_MESSAGES = {
-    "GPS.Coordinates": "This reveals your exact location",
-    "GPS.GPSAltitude": "Reveals the elevation",
-    "GPS.GPSTimeStamp": "Reveals the exact time your location was recorded",
-    "DateTimeOriginal": "Reveals the exact time the photo was taken",
-    "DateTimeDigitized": "Reveals when this file was digitized.",
-    "Make": "Reveals the device brand used to take this photo",
-    "Model": "Reveals the exact device model used.",
-    "LensModel": "Reveals technical camera/lens details.",
-    "SerialNumber": "Reveals the camera's unique serial number",
-    "Artist": "This file may directly contain a name.",
-    "Copyright": "This file may contain identifying text.",
-    "EmbeddedThumbnail": "The hidden preview image inside this file may show content you thought you removed.",
-    "Software": "Reveals what software was used to edit this file.",
-    "PNG.tEXt": "Contains free-text data that may include personal notes or usernames.",
-    "PNG.iTXt": "Contains free-text data that may include personal notes or usernames.",
-}
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
-def summarize(fields):
-    for f in fields:
-        f["message"] = RISK_MESSAGES.get(f["key"], f"This reveals: {f['label']}")
-    return fields
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def map_fields_for_frontend(fields):
+    """
+    Convert the new field shape to what the frontend expects.
+    
+    New shape (from extract):
+        {"key": "GPS.GPSLatitude", "label": "...", "value": "37.774929 N", "risk": "high", ...}
+    
+    Frontend expects:
+        {"key": "GPS.GPSLatitude", "label": "...", "message": "37.774929 N", "risk": "high"}
+    """
+    return [
+        {
+            "key": field["key"],
+            "label": field["label"],
+            "message": field["value"],  # Rename "value" → "message"
+            "risk": field["risk"],
+            # Optional: include these if you want to use them later
+            # "category": field["category"],
+            # "sensitive": field["sensitive"],
+        }
+        for field in fields
+    ]
+
+
+# ============================================================
+# ROUTES
+# ============================================================
 
 @app.route("/scrub", methods=["POST"])
 def scrub():
+    # Validate file presence
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
+    
     file = request.files["file"]
+    
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400
+    
+    # Read file
     file_bytes = file.read()
-    metadata = extract(file_bytes, file.filename)
-    metadata["fields"] = summarize(metadata["fields"])
-    return jsonify(metadata)
+    
+    # Enforce size limit
+    if len(file_bytes) > MAX_FILE_SIZE:
+        return jsonify({"error": f"File too large (max {MAX_FILE_SIZE // (1024*1024)}MB)"}), 413
+    
+    # Extract metadata
+    try:
+        result = extract(file_bytes, file.filename)
+    except ValueError as e:
+        # Handle unsupported file types gracefully
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        # Catch-all for unexpected errors
+        return jsonify({"error": f"Failed to process file: {str(e)}"}), 500
+    
+    # Map to frontend format
+    frontend_fields = map_fields_for_frontend(result["fields"])
+    
+    return jsonify({
+        "format": result.get("format", "unknown"),
+        "fields": frontend_fields
+    })
+
 
 @app.route("/download", methods=["POST"])
 def download():
+    # Validate file presence
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
+    
     file = request.files["file"]
     file_bytes = file.read()
-
+    
+    # Enforce size limit
+    if len(file_bytes) > MAX_FILE_SIZE:
+        return jsonify({"error": f"File too large (max {MAX_FILE_SIZE // (1024*1024)}MB)"}), 413
+    
+    # Parse and validate "keep" parameter
     keep_raw = request.form.get("keep", "[]")
     try:
         keep = json.loads(keep_raw)
+        if not isinstance(keep, list):
+            keep = []
     except json.JSONDecodeError:
         keep = []
-
-    cleaned = strip(file_bytes, file.filename, keep=keep)
-    buffer = BytesIO(cleaned)
+    
+    # Validate keep keys against known fields
+    valid_keys = set(FIELD_INFO.keys())
+    keep = [k for k in keep if k in valid_keys]  # Filter out invalid keys
+    
+    # Strip metadata
+    try:
+        cleaned_bytes = strip(file_bytes, file.filename, keep=keep)
+    except ValueError as e:
+        # Handle unsupported formats
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Failed to clean file: {str(e)}"}), 500
+    
+    # Prepare download
+    buffer = BytesIO(cleaned_bytes)
     buffer.seek(0)
-    return send_file(buffer, mimetype="image/jpeg", as_attachment=True, download_name=f"cleaned_{file.filename}")
+    
+    # Determine output mimetype based on original format
+    mimetype = "image/jpeg"  # Default
+    if file.filename.lower().endswith(".png"):
+        mimetype = "image/png"
+    
+    return send_file(
+        buffer,
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=f"cleaned_{file.filename}"
+    )
+
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
     app.run(debug=True)
