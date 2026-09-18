@@ -21,8 +21,6 @@ const PRESET_META = {
     blurb: 'Custom configuration set manually.',
   },
 }
-
-// Accurately categorizes fields by checking key and label FIRST
 function categorizeField(field) {
   if (!field) return 'other'
 
@@ -30,7 +28,6 @@ function categorizeField(field) {
   const label = String(field.label || '').toLowerCase()
   const combined = `${key} ${label}`
 
-  // 1. Check Timestamps / Dates FIRST (so "GPS timestamp" becomes timestamp, not location)
   if (
     combined.includes('time') ||
     combined.includes('date') ||
@@ -40,8 +37,6 @@ function categorizeField(field) {
   ) {
     return 'timestamp'
   }
-
-  // 2. Check GPS / Location coordinates
   if (
     combined.includes('gps') ||
     combined.includes('latitude') ||
@@ -52,8 +47,6 @@ function categorizeField(field) {
   ) {
     return 'location'
   }
-
-  // 3. Check Artist / Author / Creator / Copyright
   if (
     combined.includes('artist') ||
     combined.includes('author') ||
@@ -66,7 +59,6 @@ function categorizeField(field) {
     return 'author'
   }
 
-  // 4. Check Software / Editing Tools
   if (
     combined.includes('software') ||
     combined.includes('program') ||
@@ -77,7 +69,6 @@ function categorizeField(field) {
     return 'software'
   }
 
-  // 5. Check Camera / Hardware Specs
   if (
     combined.includes('camera') ||
     combined.includes('make') ||
@@ -92,8 +83,6 @@ function categorizeField(field) {
 
   return 'other'
 }
-
-// Determines which field keys to REMOVE (checked = true)
 function getFieldsToRemoveForPreset(presetType, fieldsList) {
   const toRemoveSet = new Set()
   if (!Array.isArray(fieldsList)) return toRemoveSet
