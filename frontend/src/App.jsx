@@ -22,6 +22,18 @@ const PRESET_META = {
   },
 }
 
+// Messages + weight shown in the risk panel, keyed by category.
+const CATEGORY_RISK_INFO = {
+  location: { message: 'Your location information is exposed.', weight: 25 },
+  device: { message: 'Camera and device information is present.', weight: 20 },
+  timestamp: { message: 'Creation timestamp is available.', weight: 12 },
+  author: { message: 'Author or ownership details are included.', weight: 8 },
+  software: { message: 'Editing software history is visible.', weight: 6 },
+  other: { message: 'Additional hidden metadata is present.', weight: 5 },
+}
+
+const RISK_LEVEL_WEIGHT = { HIGH: 25, MEDIUM: 12, LOW: 5 }
+
 function categorizeField(field) {
   if (!field) return 'other'
 
@@ -109,6 +121,61 @@ function getFieldsToRemoveForPreset(presetType, fieldsList) {
   })
 
   return toRemoveSet
+}
+
+// --- Risk panel helpers -----------------------------------------------
+
+function getHighestSeverityForCategory(fieldsList, category) {
+  const order = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+  let best = null
+  fieldsList.forEach((f) => {
+    if (categorizeField(f) !== category) return
+    const risk = String(f.risk || 'LOW').toUpperCase()
+    if (!best || order[risk] > order[best]) best = risk
+  })
+  return best || 'LOW'
+}
+
+function getDetectedRisks(fieldsList) {
+  const seen = new Set()
+  const risks = []
+
+  fieldsList.forEach((f) => {
+    const category = categorizeField(f)
+    if (seen.has(category)) return
+    seen.add(category)
+
+    const info = CATEGORY_RISK_INFO[category] || CATEGORY_RISK_INFO.other
+    risks.push({
+      category,
+      message: info.message,
+      severity: getHighestSeverityForCategory(fieldsList, category),
+    })
+  })
+
+  // Surface the scariest risks first.
+  const order = { HIGH: 0, MEDIUM: 1, LOW: 2 }
+  return risks.sort((a, b) => order[a.severity] - order[b.severity])
+}
+
+function computeRiskScore(fieldsList) {
+  if (!Array.isArray(fieldsList) || fieldsList.length === 0) return 0
+  const total = fieldsList.reduce((sum, f) => {
+    const risk = String(f.risk || 'LOW').toUpperCase()
+    return sum + (RISK_LEVEL_WEIGHT[risk] || RISK_LEVEL_WEIGHT.LOW)
+  }, 0)
+  return Math.min(100, total)
+}
+
+function getRiskLevel(score) {
+  if (score >= 70) return 'High Risk'
+  if (score >= 35) return 'Medium Risk'
+  if (score > 0) return 'Low Risk'
+  return 'No Risk'
+}
+
+function riskLevelClass(level) {
+  return level.toLowerCase().replace(/\s+/g, '-')
 }
 
 function App() {
@@ -279,6 +346,13 @@ function App() {
   const totalFieldsCount = fieldsList.length
   const fieldsToKeepCount = totalFieldsCount - fieldsToRemove.size
 
+  // --- Risk panel derived state ---
+  const riskScore = computeRiskScore(fieldsList)
+  const riskLevel = getRiskLevel(riskScore)
+  const detectedRisks = getDetectedRisks(fieldsList)
+  const gaugeCircumference = 251.2 // 2 * PI * 40, half shown via dasharray below
+  const gaugeOffset = gaugeCircumference - (gaugeCircumference * riskScore) / 100
+
   return (
     <div className="page">
       <div className="topbar">
@@ -297,146 +371,146 @@ function App() {
       </div>
 
       <div className="main-layout">
-        {!isResultsScreen && (
-          <>
-            <div className="dashboard">
-              <div className="dashboard-header">
-                <h1>Dashboard</h1>
-                <p>Overview of your metadata privacy activity.</p>
+        <div className="dashboard">
+          <div className="dashboard-header">
+            <h1>Risk Score</h1>
+            <p>{results ? 'Here is what this file reveals about you.' : 'Scan a file to see what it reveals.'}</p>
+          </div>
+
+          <div className="card risk-score-card">
+            <div className="risk-gauge">
+              <svg viewBox="0 0 100 100" className="gauge-svg">
+                <circle cx="50" cy="50" r="40" className="gauge-track" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  className={`gauge-fill gauge-fill-${riskLevelClass(riskLevel)}`}
+                  strokeDasharray={gaugeCircumference}
+                  strokeDashoffset={gaugeOffset}
+                />
+              </svg>
+              <div className="gauge-value">
+                <span className="gauge-number">{riskScore}</span>
+                <span className="gauge-max">/ 100</span>
               </div>
+            </div>
 
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <p className="stat-label">Files Processed</p>
-                  <h2>{stats.filesProcessed}</h2>
-                  <p className="stat-description">Files scrubbed successfully</p>
-                </div>
+            <div className="risk-score-meta">
+              <span className={`risk-level-tag risk-level-${riskLevelClass(riskLevel)}`}>{riskLevel}</span>
+              <p className="risk-score-caption">
+                {results
+                  ? `${totalFieldsCount} metadata field${totalFieldsCount !== 1 ? 's' : ''} detected`
+                  : 'No file scanned yet'}
+              </p>
+            </div>
+          </div>
 
-                <div className="stat-card">
-                  <p className="stat-label">Metadata Detected</p>
-                  <h2>{stats.metadataDetected}</h2>
-                  <p className="stat-description">Metadata fields found</p>
-                </div>
+          <div className="card risk-list-card">
+            <p className="risk-list-title">Metadata Risks</p>
+            {detectedRisks.length === 0 ? (
+              <p className="risk-list-empty">Scan a file to see what personal information it contains.</p>
+            ) : (
+              <ul className="risk-list">
+                {detectedRisks.map((r) => (
+                  <li className="risk-list-item" key={r.category}>
+                    <span className={`risk-dot risk-dot-${r.severity.toLowerCase()}`} />
+                    <span>{r.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-                <div className="stat-card">
-                  <p className="stat-label">Metadata Removed</p>
-                  <h2>{stats.metadataRemoved}</h2>
-                  <p className="stat-description">Sensitive fields removed</p>
-                </div>
-              </div>
+          <div className="card protection-status-card">
+            <div className="protection-status-icon">
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z" />
+              </svg>
+            </div>
+            <div className="protection-status-text">
+              <p className="protection-status-count">
+                {results ? `${detectedRisks.length} risk${detectedRisks.length !== 1 ? 's' : ''} detected` : 'No risks detected'}
+              </p>
+              {results && <p className="protection-status-sub">Ready to scrub</p>}
+            </div>
+          </div>
+        </div>
 
-              <div className="dashboard-action">
-                <div>
-                  <h2>Ready to protect your file?</h2>
-                  <p>Remove sensitive metadata before sharing your files.</p>
-                </div>
+        {!isResultsScreen ? (
+          <div className="scrubber-section">
+            <div className="hero">
+              <h1 className="hero-title">Metadata Scrubber</h1>
+              <p className="hero-sub">Remove hidden information before you share.</p>
+              <p className="hero-text">Protect your privacy by removing sensitive metadata from your files.</p>
+            </div>
 
-                <button
-                  className="primary-btn"
-                  onClick={() => document.querySelector('.drop-card')?.scrollIntoView({ behavior: 'smooth' })}
+            <div className="card">
+              {status === 'idle' && (
+                <div
+                  className={`drop-zone${dragging ? ' dragging' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setDragging(true)
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
                 >
-                  Scrub a file
-                </button>
-              </div>
-
-              <div className="features-section">
-                <h2>What DASCRU protects</h2>
-
-                <div className="features-grid">
-                  <div className="feature-card">
-                    <h3>Location</h3>
-                    <p>Remove GPS coordinates and location information.</p>
+                  <div className="drop-icon">
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3v12m0-12 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                    </svg>
                   </div>
+                  <p className="drop-title">Drop your file here</p>
+                  <p className="drop-sub">
+                    or <label htmlFor="fileInput" className="browse-link">browse files</label>
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="fileInput"
+                    style={{ display: 'none' }}
+                    onChange={handleFileChange}
+                  />
+                  <p className="filetypes">{SUPPORTED_TYPES}</p>
+                </div>
+              )}
 
-                  <div className="feature-card">
-                    <h3>Device Information</h3>
-                    <p>Remove camera and device details from your files.</p>
+              {status === 'selected' && file && (
+                <div className="file-row">
+                  <div className="file-info">
+                    <div className="file-icon">{extLabel(file)}</div>
+                    <div>
+                      <p className="file-name">{file.name}</p>
+                      <p className="file-meta">
+                        {extLabel(file)} · {formatSize(file.size)}
+                      </p>
+                    </div>
                   </div>
+                  <button className="remove-btn" onClick={handleClearFile}>
+                    Remove
+                  </button>
+                </div>
+              )}
 
-                  <div className="feature-card">
-                    <h3>Timestamps</h3>
-                    <p>Control timestamps and other hidden file information.</p>
+              {isProcessing && (
+                <div className="processing">
+                  <p className="processing-title">
+                    {status === 'analyzing' ? 'Analyzing file...' : 'Removing sensitive metadata...'}
+                  </p>
+                  <p className="processing-sub">This only takes a moment.</p>
+                  <div className="bar-track">
+                    <div className="bar-fill" />
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="scrubber-section">
-              <div className="hero">
-                <h1 className="hero-title">Metadata Scrubber</h1>
-                <p className="hero-sub">Remove hidden information before you share.</p>
-                <p className="hero-text">Protect your privacy by removing sensitive metadata from your files.</p>
-              </div>
-
-              <div className="card">
-                {status === 'idle' && (
-                  <div
-                    className={`drop-zone${dragging ? ' dragging' : ''}`}
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      setDragging(true)
-                    }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={handleDrop}
-                  >
-                    <div className="drop-icon">
-                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3v12m0-12 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                      </svg>
-                    </div>
-                    <p className="drop-title">Drop your file here</p>
-                    <p className="drop-sub">
-                      or <label htmlFor="fileInput" className="browse-link">browse files</label>
-                    </p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      id="fileInput"
-                      style={{ display: 'none' }}
-                      onChange={handleFileChange}
-                    />
-                    <p className="filetypes">{SUPPORTED_TYPES}</p>
-                  </div>
-                )}
-
-                {status === 'selected' && file && (
-                  <div className="file-row">
-                    <div className="file-info">
-                      <div className="file-icon">{extLabel(file)}</div>
-                      <div>
-                        <p className="file-name">{file.name}</p>
-                        <p className="file-meta">
-                          {extLabel(file)} · {formatSize(file.size)}
-                        </p>
-                      </div>
-                    </div>
-                    <button className="remove-btn" onClick={handleClearFile}>
-                      Remove
-                    </button>
-                  </div>
-                )}
-
-                {isProcessing && (
-                  <div className="processing">
-                    <p className="processing-title">
-                      {status === 'analyzing' ? 'Analyzing file...' : 'Removing sensitive metadata...'}
-                    </p>
-                    <p className="processing-sub">This only takes a moment.</p>
-                    <div className="bar-track">
-                      <div className="bar-fill" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button className="primary-btn" onClick={handleScrub} disabled={!file || isProcessing}>
-                {isProcessing ? 'Scrubbing...' : 'Scrub file'}
-              </button>
-            </div>
-          </>
-        )}
-
-        {isResultsScreen && (
+            <button className="primary-btn" onClick={handleScrub} disabled={!file || isProcessing}>
+              {isProcessing ? 'Scrubbing...' : 'Scrub file'}
+            </button>
+          </div>
+        ) : (
           <div className="scrubber-section">
             <div className="success-block">
               <div className="success-icon">
