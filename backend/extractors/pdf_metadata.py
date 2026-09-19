@@ -146,22 +146,14 @@ def strip(
     filename: str = "",
     keep=None,
 ) -> bytes:
-    """
-    Remove supported PDF metadata.
-
-    keep:
-        List of metadata keys that should be preserved.
-
-    Example:
-        keep=["Title", "Subject"]
-
-    An empty keep list removes supported document metadata.
-    """
-
     if keep is None:
         keep = []
 
-    keep = set(keep)
+    # Only allow metadata keys that this extractor explicitly supports.
+    valid_keys = set(FIELD_INFO.keys())
+
+    # Ignore unknown keys rather than allowing them to affect scrubbing.
+    keep = set(keep) & valid_keys
 
     reader = PdfReader(io.BytesIO(file_bytes), strict=False)
 
@@ -169,7 +161,6 @@ def strip(
 
     _copy_pages(reader, writer)
 
-    # Preserve only explicitly requested document-information fields.
     metadata_to_keep = {}
 
     original_metadata = reader.metadata
@@ -182,16 +173,12 @@ def strip(
                 if value is not None:
                     metadata_to_keep[f"/{key}"] = str(value)
 
-    # pypdf's metadata setter controls the PDF document information
-    # dictionary. Setting it to None removes it.
     if metadata_to_keep:
         writer.metadata = metadata_to_keep
     else:
         writer.metadata = None
 
-    # We currently remove XMP metadata rather than preserving it.
-    # This keeps the scrubber conservative until individual XMP fields
-    # are supported explicitly.
+    # XMP is currently removed rather than selectively preserved.
 
     output = io.BytesIO()
     writer.write(output)
