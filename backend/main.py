@@ -2,6 +2,7 @@ import json
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from io import BytesIO
+from backend.services.risk_score import calculate_risk_report
 from backend.extractors.image_exif import extract as extract_image, strip as strip_image, FIELD_INFO as IMAGE_FIELD_INFO
 from backend.extractors.pdf_metadata import extract as extract_pdf, strip as strip_pdf
 
@@ -75,11 +76,14 @@ def scrub():
     except Exception as e:
         return jsonify({"error": f"Failed to process file: {str(e)}"}), 500
 
-    frontend_fields = map_fields_for_frontend(result["fields"],file_type)
+    frontend_fields = map_fields_for_frontend(result["fields"], file_type)
+    risk_report = calculate_risk_report(result["fields"])
 
     return jsonify({
         "format": result.get("format", file_type),
-        "fields": frontend_fields
+        "fields": frontend_fields,
+        "overall_score": risk_report["overall_score"],
+        "overall_level": risk_report["overall_level"]
     })
 
 
