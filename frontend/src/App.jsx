@@ -21,6 +21,7 @@ const PRESET_META = {
     blurb: 'Custom configuration set manually.',
   },
 }
+
 function categorizeField(field) {
   if (!field) return 'other'
 
@@ -83,6 +84,7 @@ function categorizeField(field) {
 
   return 'other'
 }
+
 function getFieldsToRemoveForPreset(presetType, fieldsList) {
   const toRemoveSet = new Set()
   if (!Array.isArray(fieldsList)) return toRemoveSet
@@ -94,15 +96,10 @@ function getFieldsToRemoveForPreset(presetType, fieldsList) {
     let isMarkedForRemoval = false
 
     if (presetType === 'legal') {
-      // Legal: Strip EVERYTHING
       isMarkedForRemoval = true
     } else if (presetType === 'social') {
-      // Social Media: Strip Location & Camera details
-      // Keep: Timestamps, Software, Artist/Author
       isMarkedForRemoval = category === 'location' || category === 'device'
     } else if (presetType === 'resume') {
-      // Resume / Portfolio: Strip Location ONLY
-      // Keep: Camera specs, Timestamps, Software, Artist/Author
       isMarkedForRemoval = category === 'location'
     }
 
@@ -116,11 +113,18 @@ function getFieldsToRemoveForPreset(presetType, fieldsList) {
 
 function App() {
   const [file, setFile] = useState(null)
+
   const [status, setStatus] = useState('idle') // idle | selected | analyzing | removing | done
   const [results, setResults] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [fieldsToRemove, setFieldsToRemove] = useState(new Set())
   const [preset, setPreset] = useState('legal')
+
+  const [stats, setStats] = useState({
+    filesProcessed: 0,
+    metadataDetected: 0,
+    metadataRemoved: 0,
+  })
 
   const selectFile = (selected) => {
     if (!selected) return
@@ -184,6 +188,11 @@ function App() {
       const data = await res.json()
 
       setResults(data)
+      setStats((prev) => ({
+        ...prev,
+        filesProcessed: prev.filesProcessed + 1,
+        metadataDetected: prev.metadataDetected + (data?.fields?.length || 0),
+      }))
 
       const initialPreset = 'legal'
       setPreset(initialPreset)
@@ -205,7 +214,10 @@ function App() {
       const fieldsList = results?.fields || []
       const allFieldKeys = fieldsList.map((f) => f.key)
       const fieldsToKeep = allFieldKeys.filter((key) => !fieldsToRemove.has(key))
-
+      setStats((prev) => ({
+        ...prev,
+        metadataRemoved: prev.metadataRemoved + fieldsToRemove.size,
+      }))
       const formData = new FormData()
       formData.append('file', file)
       formData.append('keep', JSON.stringify(fieldsToKeep))
@@ -274,6 +286,7 @@ function App() {
           <span className="brand-dot" />
           DASCRU
         </div>
+
         <div className="privacy-chip">
           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -283,187 +296,249 @@ function App() {
         </div>
       </div>
 
-      {!isResultsScreen && (
-        <>
-          <div className="hero">
-            <h1 className="hero-title">Metadata Scrubber</h1>
-            <p className="hero-sub">Remove hidden information before you share.</p>
-            <p className="hero-text">Protect your privacy by removing sensitive metadata from your files.</p>
-          </div>
-
-          <div className="card">
-            {status === 'idle' && (
-              <div
-                className={`drop-zone${dragging ? ' dragging' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setDragging(true)
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-              >
-                <div className="drop-icon">
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 3v12m0-12 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                  </svg>
-                </div>
-                <p className="drop-title">Drop your file here</p>
-                <p className="drop-sub">
-                  or <label htmlFor="fileInput" className="browse-link">browse files</label>
-                </p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  id="fileInput"
-                  style={{ display: 'none' }}
-                  onChange={handleFileChange}
-                />
-                <p className="filetypes">{SUPPORTED_TYPES}</p>
+      <div className="main-layout">
+        {!isResultsScreen && (
+          <>
+            <div className="dashboard">
+              <div className="dashboard-header">
+                <h1>Dashboard</h1>
+                <p>Overview of your metadata privacy activity.</p>
               </div>
-            )}
 
-            {status === 'selected' && file && (
-              <div className="file-row">
-                <div className="file-info">
-                  <div className="file-icon">{extLabel(file)}</div>
-                  <div>
-                    <p className="file-name">{file.name}</p>
-                    <p className="file-meta">
-                      {extLabel(file)} · {formatSize(file.size)}
-                    </p>
-                  </div>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <p className="stat-label">Files Processed</p>
+                  <h2>{stats.filesProcessed}</h2>
+                  <p className="stat-description">Files scrubbed successfully</p>
                 </div>
-                <button className="remove-btn" onClick={handleClearFile}>
-                  Remove
+
+                <div className="stat-card">
+                  <p className="stat-label">Metadata Detected</p>
+                  <h2>{stats.metadataDetected}</h2>
+                  <p className="stat-description">Metadata fields found</p>
+                </div>
+
+                <div className="stat-card">
+                  <p className="stat-label">Metadata Removed</p>
+                  <h2>{stats.metadataRemoved}</h2>
+                  <p className="stat-description">Sensitive fields removed</p>
+                </div>
+              </div>
+
+              <div className="dashboard-action">
+                <div>
+                  <h2>Ready to protect your file?</h2>
+                  <p>Remove sensitive metadata before sharing your files.</p>
+                </div>
+
+                <button
+                  className="primary-btn"
+                  onClick={() => document.querySelector('.drop-card')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  Scrub a file
                 </button>
               </div>
-            )}
 
-            {isProcessing && (
-              <div className="processing">
-                <p className="processing-title">
-                  {status === 'analyzing' ? 'Analyzing file...' : 'Removing sensitive metadata...'}
-                </p>
-                <p className="processing-sub">This only takes a moment.</p>
-                <div className="bar-track">
-                  <div className="bar-fill" />
+              <div className="features-section">
+                <h2>What DASCRU protects</h2>
+
+                <div className="features-grid">
+                  <div className="feature-card">
+                    <h3>Location</h3>
+                    <p>Remove GPS coordinates and location information.</p>
+                  </div>
+
+                  <div className="feature-card">
+                    <h3>Device Information</h3>
+                    <p>Remove camera and device details from your files.</p>
+                  </div>
+
+                  <div className="feature-card">
+                    <h3>Timestamps</h3>
+                    <p>Control timestamps and other hidden file information.</p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          <button className="primary-btn" onClick={handleScrub} disabled={!file || isProcessing}>
-            {isProcessing ? 'Scrubbing...' : 'Scrub file'}
-          </button>
-        </>
-      )}
-
-      {isResultsScreen && (
-        <>
-          <div className="success-block">
-            <div className="success-icon">
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
             </div>
-            <h1 className="success-title">File scanned successfully</h1>
-            <p className="success-sub">
-              {totalFieldsCount} metadata field{totalFieldsCount !== 1 ? 's' : ''} detected.{' '}
-              {fieldsToRemove.size} will be removed, {fieldsToKeepCount} preserved.
-            </p>
-          </div>
 
-          <div className="card">
-            <div className="preset-bar">
-              <div className="preset-text">
-                <label htmlFor="preset" className="preset-label">
-                  Category Preset
-                </label>
-                <p className="preset-blurb">{PRESET_META[preset]?.blurb}</p>
+            <div className="scrubber-section">
+              <div className="hero">
+                <h1 className="hero-title">Metadata Scrubber</h1>
+                <p className="hero-sub">Remove hidden information before you share.</p>
+                <p className="hero-text">Protect your privacy by removing sensitive metadata from your files.</p>
               </div>
-              <select
-                id="preset"
-                className="preset-select"
-                value={preset}
-                onChange={handlePresetChange}
-              >
-                <option value="legal">{PRESET_META.legal.label}</option>
-                <option value="social">{PRESET_META.social.label}</option>
-                <option value="resume">{PRESET_META.resume.label}</option>
-                <option value="custom">{PRESET_META.custom.label}</option>
-              </select>
-            </div>
 
-            <div className="results-header">
-              <p className="results-title">Select fields to remove</p>
-              <span className="results-count">
-                {fieldsToRemove.size} of {totalFieldsCount} selected
-              </span>
-            </div>
+              <div className="card">
+                {status === 'idle' && (
+                  <div
+                    className={`drop-zone${dragging ? ' dragging' : ''}`}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setDragging(true)
+                    }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={handleDrop}
+                  >
+                    <div className="drop-icon">
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3v12m0-12 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                      </svg>
+                    </div>
+                    <p className="drop-title">Drop your file here</p>
+                    <p className="drop-sub">
+                      or <label htmlFor="fileInput" className="browse-link">browse files</label>
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="fileInput"
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
+                    <p className="filetypes">{SUPPORTED_TYPES}</p>
+                  </div>
+                )}
 
-            {/* ===== Column headers ===== */}
-            {totalFieldsCount > 0 && (
-              <div className="field-header-row">
-                <span></span>
-                <span>Field</span>
-                <span>What it reveals</span>
-                <span>Risk</span>
-              </div>
-            )}
-
-            {totalFieldsCount === 0 ? (
-              <div className="empty-fields">No metadata was found in this file.</div>
-            ) : (
-              <div className="field-list">
-                {fieldsList.map((f) => {
-                  const isWillBeRemoved = fieldsToRemove.has(f.key)
-                  return (
-                    <label className={`field-item${!isWillBeRemoved ? ' is-kept' : ''}`} key={f.key}>
-                      <input
-                        type="checkbox"
-                        className="field-checkbox"
-                        checked={isWillBeRemoved}
-                        onChange={() => toggleFieldRemoval(f.key)}
-                      />
-
-                      {/* COLUMN 1: Name + Value */}
-                      <div className="col-name">
-                        <p className="field-label">
-                          {f.label}
-                          {!isWillBeRemoved && <span className="kept-tag">preserved</span>}
+                {status === 'selected' && file && (
+                  <div className="file-row">
+                    <div className="file-info">
+                      <div className="file-icon">{extLabel(file)}</div>
+                      <div>
+                        <p className="file-name">{file.name}</p>
+                        <p className="file-meta">
+                          {extLabel(file)} · {formatSize(file.size)}
                         </p>
-                        {f.value && <p className="field-value">{f.value}</p>}
                       </div>
+                    </div>
+                    <button className="remove-btn" onClick={handleClearFile}>
+                      Remove
+                    </button>
+                  </div>
+                )}
 
-                      {/* COLUMN 2: Message / explanation */}
-                      <div className="col-message">
-                        {f.message || '—'}
-                      </div>
-
-                      {/* COLUMN 3: Risk badge */}
-                      <div className="col-risk">
-                        <span className={`risk-badge risk-${(f.risk || 'low').toLowerCase()}`}>
-                          {f.risk || 'LOW'}
-                        </span>
-                      </div>
-                    </label>
-                  )
-                })}
+                {isProcessing && (
+                  <div className="processing">
+                    <p className="processing-title">
+                      {status === 'analyzing' ? 'Analyzing file...' : 'Removing sensitive metadata...'}
+                    </p>
+                    <p className="processing-sub">This only takes a moment.</p>
+                    <div className="bar-track">
+                      <div className="bar-fill" />
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <div className="actions">
-            <button className="primary-btn" onClick={handleDownload}>
-              ↓ Download cleaned file
-              {fieldsToKeepCount > 0 && ` (keeping ${fieldsToKeepCount})`}
-            </button>
-            <button className="scrub-another" onClick={handleReset}>
-              Scrub another file
-            </button>
+              <button className="primary-btn" onClick={handleScrub} disabled={!file || isProcessing}>
+                {isProcessing ? 'Scrubbing...' : 'Scrub file'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {isResultsScreen && (
+          <div className="scrubber-section">
+            <div className="success-block">
+              <div className="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </div>
+              <h1 className="success-title">File scanned successfully</h1>
+              <p className="success-sub">
+                {totalFieldsCount} metadata field{totalFieldsCount !== 1 ? 's' : ''} detected.{' '}
+                {fieldsToRemove.size} will be removed, {fieldsToKeepCount} preserved.
+              </p>
+            </div>
+
+            <div className="card">
+              <div className="preset-bar">
+                <div className="preset-text">
+                  <label htmlFor="preset" className="preset-label">
+                    Category Preset
+                  </label>
+                  <p className="preset-blurb">{PRESET_META[preset]?.blurb}</p>
+                </div>
+                <select
+                  id="preset"
+                  className="preset-select"
+                  value={preset}
+                  onChange={handlePresetChange}
+                >
+                  <option value="legal">{PRESET_META.legal.label}</option>
+                  <option value="social">{PRESET_META.social.label}</option>
+                  <option value="resume">{PRESET_META.resume.label}</option>
+                  <option value="custom">{PRESET_META.custom.label}</option>
+                </select>
+              </div>
+
+              <div className="results-header">
+                <p className="results-title">Select fields to remove</p>
+                <span className="results-count">
+                  {fieldsToRemove.size} of {totalFieldsCount} selected
+                </span>
+              </div>
+
+              {totalFieldsCount > 0 && (
+                <div className="field-header-row">
+                  <span></span>
+                  <span>Field</span>
+                  <span>What it reveals</span>
+                  <span>Risk</span>
+                </div>
+              )}
+
+              {totalFieldsCount === 0 ? (
+                <div className="empty-fields">No metadata was found in this file.</div>
+              ) : (
+                <div className="field-list">
+                  {fieldsList.map((f) => {
+                    const isWillBeRemoved = fieldsToRemove.has(f.key)
+                    return (
+                      <label className={`field-item${!isWillBeRemoved ? ' is-kept' : ''}`} key={f.key}>
+                        <input
+                          type="checkbox"
+                          className="field-checkbox"
+                          checked={isWillBeRemoved}
+                          onChange={() => toggleFieldRemoval(f.key)}
+                        />
+
+                        <div className="col-name">
+                          <p className="field-label">
+                            {f.label}
+                            {!isWillBeRemoved && <span className="kept-tag">preserved</span>}
+                          </p>
+                          {f.value && <p className="field-value">{f.value}</p>}
+                        </div>
+
+                        <div className="col-message">
+                          {f.message || '—'}
+                        </div>
+
+                        <div className="col-risk">
+                          <span className={`risk-badge risk-${(f.risk || 'low').toLowerCase()}`}>
+                            {f.risk || 'LOW'}
+                          </span>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="actions">
+              <button className="primary-btn" onClick={handleDownload}>
+                ↓ Download cleaned file
+                {fieldsToKeepCount > 0 && ` (keeping ${fieldsToKeepCount})`}
+              </button>
+              <button className="scrub-another" onClick={handleReset}>
+                Scrub another file
+              </button>
+            </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
