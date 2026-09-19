@@ -1,23 +1,25 @@
 # Metadata Scrubber
 
-A tool that extracts potentially sensitive metadata from image files, displays it to the user, and creates a cleaned copy with selected metadata removed.
+A tool that extracts potentially sensitive metadata from files, shows the user what's exposed with a plain-English risk explanation, and creates a cleaned copy with selected metadata removed.
 
 ## Current Scope
 
-The current implementation focuses on **image metadata**, especially EXIF data in JPEG/JPG images and text metadata in PNG files.
+The implementation currently supports:
+- **Image metadata** — EXIF data in JPEG/JPG images, text metadata (tEXt/iTXt) in PNG files
+- **PDF metadata** — document info dictionary fields (Title, Author, Subject, Creator, Producer, dates, Keywords) and XMP metadata detection
 
-The project is designed to be extended later to support other file formats such as PDF and DOCX.
+DOCX support remains a planned future extension.
 
 ## How It Works
 
-1. User uploads an image.
-2. The backend extracts supported metadata fields.
-3. The metadata is displayed to the user along with its risk level.
+1. User uploads a file (image or PDF).
+2. The backend detects the actual file type from its content (not just the filename extension), then routes it to the correct extractor.
+3. Supported metadata fields are extracted and returned with a risk level and plain-English explanation for each.
 4. All supported metadata fields are selected for removal by default.
-5. The user can uncheck individual fields they want to keep.
-6. The frontend sends the keys of the fields to keep to the backend.
-7. The backend creates a scrubbed copy of the image.
-8. The user can download the cleaned image.
+5. The user can uncheck individual fields they want to keep, or choose a quick preset (e.g. Legal, Social Media, Resume) that pre-selects sensible defaults for the field types.
+6. The frontend sends the keys of the fields to **keep** to the backend.
+7. The backend creates a scrubbed copy of the file, preserving only the selected fields.
+8. The user can preview a before/after comparison and download the cleaned file.
 
 ### Checkbox Behaviour
 
@@ -26,70 +28,73 @@ The checkbox represents **whether the metadata should be removed**:
 * ☑ Checked → **Remove** this metadata
 * ☐ Unchecked → **Keep** this metadata
 
-For example:
-
-```text
-☑ GPS.GPSLatitude
-☑ GPS.GPSLongitude
-☐ Model
-☑ Software
-☐ Artist
-```
-
-The frontend would send:
+The frontend sends the inverse — the list of keys to **keep**:
 
 ```python
 keep = ["Model", "Artist"]
 ```
 
-Only those fields are preserved in the scrubbed image.
+Only those fields are preserved in the scrubbed file. An empty `keep` list removes all supported metadata.
 
 ## Metadata Currently Supported
 
-### Location
+### Images
 
-| Metadata           | Description                            | Risk |
-| ------------------ | -------------------------------------- | ---- |
-| `GPS.GPSLatitude`  | GPS latitude of the recorded location  | High |
-| `GPS.GPSLongitude` | GPS longitude of the recorded location | High |
-| `GPS.GPSAltitude`  | Elevation at the recorded location     | Low  |
-| `GPSTimeStamp`     | UTC time associated with the GPS fix   | Low  |
+#### Location
 
-Latitude and longitude are intentionally kept as **separate fields** so the user can choose whether to keep or remove them independently.
+| Metadata            | Description                                  | Risk |
+| -------------------- | --------------------------------------------- | ---- |
+| `GPS.Coordinates`     | Combined GPS latitude/longitude of the file   | High |
+| `GPS.GPSAltitude`     | Elevation at the recorded location            | Low  |
+| `GPS.GPSTimeStamp`    | UTC time associated with the GPS fix          | Low  |
 
-### Timestamp
+#### Timestamp
 
 | Metadata            | Description                                 | Risk   |
-| ------------------- | ------------------------------------------- | ------ |
-| `DateTimeOriginal`  | Date and time the photo was taken           | Medium |
-| `DateTimeDigitized` | Date and time the image was digitized/saved | Low    |
+| ------------------- | -------------------------------------------- | ------ |
+| `DateTimeOriginal`  | Date and time the photo was taken            | Medium |
+| `DateTimeDigitized` | Date and time the image was digitized/saved  | Low    |
 
-### Device
+#### Device
 
 | Metadata       | Description                        | Risk   |
-| -------------- | ---------------------------------- | ------ |
-| `Make`         | Camera/device manufacturer         | Medium |
-| `Model`        | Camera/device model                | Medium |
-| `LensModel`    | Lens information                   | Low    |
-| `SerialNumber` | Unique camera/device serial number | High   |
+| -------------- | ------------------------------------ | ------ |
+| `Make`         | Camera/device manufacturer          | Medium |
+| `Model`        | Camera/device model                 | Medium |
+| `LensModel`    | Lens information                    | Low    |
+| `SerialNumber` | Unique camera/device serial number  | High   |
 
-### Identity
+#### Identity
 
 | Metadata            | Description                                                                              | Risk   |
-| ------------------- | ---------------------------------------------------------------------------------------- | ------ |
-| `Artist`            | Free-text photographer/creator field                                                     | High   |
-| `Copyright`         | Copyright/identifying text                                                               | High   |
-| `EmbeddedThumbnail` | Embedded preview image that may contain information from an earlier version of the image | Medium |
+| ------------------- | ------------------------------------------------------------------------------------------ | ------ |
+| `Artist`            | Free-text photographer/creator field                                                      | High   |
+| `Copyright`         | Copyright/identifying text                                                                | High   |
+| `EmbeddedThumbnail` | Embedded preview image that may still show content from an earlier, edited/cropped version | Medium |
 
-The embedded thumbnail is checked by comparing the embedded thumbnail image against the main image rather than simply checking whether a metadata tag exists.
+#### Technical
 
-### Technical
+| Metadata   | Description                             | Risk   |
+| ---------- | ------------------------------------------ | ------ |
+| `Software` | Software used to create/edit the image    | Low    |
+| `PNG.tEXt` | PNG free-text metadata                    | Medium |
+| `PNG.iTXt` | PNG international text metadata           | Medium |
 
-| Metadata   | Description                            | Risk   |
-| ---------- | -------------------------------------- | ------ |
-| `Software` | Software used to create/edit the image | Low    |
-| `PNG.tEXt` | PNG free-text metadata                 | Medium |
-| `PNG.iTXt` | PNG international text metadata        | Medium |
+### PDFs
+
+| Metadata       | Description                              | Risk   |
+| -------------- | ------------------------------------------- | ------ |
+| `Title`        | Document title                            | Low    |
+| `Author`       | Document author                            | High   |
+| `Subject`      | Document subject line                      | Low    |
+| `Creator`      | Application that created the document      | Low    |
+| `Producer`     | Software that produced the PDF             | Low    |
+| `CreationDate` | When the document was originally created   | Medium |
+| `ModDate`      | When the document was last modified        | Medium |
+| `Keywords`     | Keywords/tags associated with the document | Medium |
+| `XMP`          | Presence of embedded XMP metadata          | Medium |
+
+XMP is currently detected and removed as a single field rather than broken into individual sub-fields.
 
 ## Risk Levels
 
@@ -100,6 +105,8 @@ Metadata fields are classified into three risk levels:
 * **Low** — generally less sensitive technical or contextual information.
 
 High-risk fields are always marked as sensitive regardless of their current value.
+
+**In progress:** in addition to per-field risk levels, an overall file-level risk score is being developed to summarize a file's total exposure in a single number/label, aggregated from all detected fields.
 
 ## Project Structure
 
@@ -112,79 +119,49 @@ metadata-scrubber/
 ├── backend/
 │   ├── extractors/
 │   │   ├── image_exif.py
-│   │   ├── pdf_metadata.py
-│   │   └── docx_metadata.py
+│   │   └── pdf_metadata.py
 │   │
 │   ├── models/
 │   │   └── metadata_schema.py
 │   │
 │   ├── tests/
-│   │   ├── test_image_exif.py
-│   │   ├── test_pdf_metadata.py
-│   │   └── test_docx_metadata.py
+│   │   └── test_image_exif.py
 │   │
 │   ├── requirements.txt
 │   └── main.py
 │
-├── api/
-│   ├── routes/
-│   │   ├── upload.py
-│   │   ├── scrub.py
-│   │   └── batch.py
-│   │
-│   ├── services/
-│   │   └── risk_summary.py
-│   │
-│   ├── app.py
-│   └── requirements.txt
-│
 ├── frontend/
 │   ├── public/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── UploadZone.jsx
-│   │   │   ├── DownloadButton.jsx
-│   │   │   ├── MetadataDiffView.jsx
-│   │   │   └── RiskReportCard.jsx
-│   │   │
-│   │   ├── mock/
-│   │   │   └── fakeMetadata.json
-│   │   │
-│   │   ├── api/
-│   │   │   └── client.js
-│   │   │
 │   │   ├── App.jsx
-│   │   └── index.jsx
+│   │   ├── App.css
+│   │   └── main.jsx
 │   │
 │   ├── package.json
 │   └── vite.config.js
 │
 ├── samples/
 │   ├── images/
-│   │   └── sample_with_gps.jpg
-│   ├── pdfs/
-│   │   └── sample_with_author.pdf
-│   └── docs/
-│       └── sample_with_tracked_changes.docx
+│   └── pdfs/
 │
 └── docs/
-    ├── demo_script.md
-    ├── metadata_field_reference.md
-    └── architecture.md
+    └── metadata_field_reference.md
 ```
+
+Note: the original `api/` folder (separate Flask app) was merged into `backend/main.py` early in development, since the project scope narrowed to a single combined API layer.
 
 ## Backend Interface
 
-The image extractor returns metadata using the following structure:
+Both extractors return metadata using the same shared structure:
 
 ```python
 {
-    "format": "jpeg",
+    "format": "jpeg",  # or "pdf"
     "fields": [
         {
-            "key": "GPS.GPSLatitude",
-            "label": "GPS latitude",
-            "value": "12.9698 N",
+            "key": "GPS.Coordinates",
+            "label": "GPS coordinates",
+            "value": "12.9698 N, 79.1559 E",
             "risk": "high",
             "category": "location",
             "sensitive": True
@@ -193,20 +170,21 @@ The image extractor returns metadata using the following structure:
 }
 ```
 
-Each metadata field contains:
-
-* `key` — unique identifier used by the frontend and scrubber.
-* `label` — human-readable field name.
-* `value` — extracted metadata value.
-* `risk` — `high`, `medium`, or `low`.
-* `category` — metadata category.
-* `sensitive` — whether the field is considered sensitive.
+The API layer (`backend/main.py`) adds a `message` field with a plain-English risk explanation before returning results to the frontend, and trims the response to only the fields the frontend needs (`key`, `label`, `value`, `message`, `risk`).
 
 If a metadata field is not present in the uploaded file, it is omitted rather than returned as `null`.
 
-## Scrubbing Interface
+## API Endpoints
 
-The backend scrubber accepts the original file bytes, filename, and a list of metadata keys that should be preserved:
+### `POST /scrub`
+
+Accepts a file upload, detects its type (by content signature, not filename), extracts metadata using the appropriate extractor, and returns the field list with risk messages.
+
+### `POST /download`
+
+Accepts the original file plus a `keep` field (a JSON-stringified array of field keys to preserve), strips all other supported metadata, and returns the cleaned file as a download with the correct content type.
+
+## Scrubbing Interface
 
 ```python
 def strip(file_bytes, filename, keep=None):
@@ -216,140 +194,95 @@ def strip(file_bytes, filename, keep=None):
 Example:
 
 ```python
-keep = [
-    "Model",
-    "Artist"
-]
+keep = ["Model", "Artist"]
 ```
 
-The resulting image will retain those selected fields while removing the supported metadata fields that were not selected.
+The resulting file retains those selected fields while removing the supported metadata fields that were not selected. An empty `keep` list removes all supported metadata.
 
-An empty `keep` list means that all supported metadata is removed.
+## File Type Detection
+
+Uploaded files are identified by their actual content signature (magic bytes) rather than filename extension, so a mislabeled or renamed file is still routed correctly:
+
+| Format | Signature                     |
+| ------ | -------------------------------- |
+| JPEG   | `FF D8 FF`                       |
+| PNG    | `89 50 4E 47 0D 0A 1A 0A`         |
+| PDF    | `%PDF`                            |
+
+## Frontend Features
+
+- Drag-and-drop or click-to-browse file upload (images and PDFs)
+- Dashboard view summarizing detected metadata
+- Plain-English explanations of what each sensitive field reveals
+- Before/after comparison of the file's metadata
+- File preview
+- Quick presets (Legal, Social Media, Resume/Portfolio, Custom) that pre-select which fields to strip based on common use cases
+- Per-field manual override via checkboxes
+- Download of the cleaned file
 
 ## Installation
 
 ### Backend
 
-Navigate to the backend directory:
-
 ```bash
 cd backend
-```
-
-Install the required dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-The image metadata implementation requires:
+Run from the **repository root** (not from inside `backend/`), since the app is run as a package:
 
+```bash
+python -m backend.main
+```
+
+The backend requires:
 ```text
+Flask
+flask-cors
 Pillow
-numpy
-```
-
-### API
-
-The API has its own requirements file:
-
-```bash
-cd api
-pip install -r requirements.txt
+piexif
+exifread
+pypdf
 ```
 
 ### Frontend
 
-Navigate to the frontend directory:
-
 ```bash
 cd frontend
-```
-
-Install dependencies:
-
-```bash
 npm install
-```
-
-Start the development server:
-
-```bash
 npm run dev
 ```
 
 ## Development Notes
 
-The metadata extraction and scrubbing logic is kept in the backend extractor rather than duplicated in the frontend.
+Metadata extraction and scrubbing logic is kept entirely in the backend extractors, never duplicated in the API layer or frontend.
 
-The frontend should work with metadata using the field's exact `key`. This allows the same metadata identifier to be used when displaying fields, tracking checkbox selections, and sending the `keep` list to the backend.
-
-For example:
-
-```python
-{
-    "key": "GPS.GPSLatitude",
-    ...
-}
-```
-
-should remain exactly:
-
-```text
-GPS.GPSLatitude
-```
-
-throughout the extraction, UI, and scrubbing flow.
+The frontend works with metadata using the field's exact `key`, used consistently for display, checkbox tracking, and the `keep` list sent to the backend.
 
 ## Limitations
 
-The current implementation focuses on the metadata fields defined in the project specification.
+The current implementation targets the metadata fields explicitly defined by this project. It does not guarantee removal of every possible piece of metadata from every file format or application-generated file — different software may store metadata in nonstandard or additional ways.
 
-It does not guarantee removal of every possible piece of metadata from every image format or application-generated file.
-
-Different image editors, cameras, and software may store metadata in different ways. The scrubber therefore targets the supported metadata fields explicitly defined by this project.
-
-PDF and DOCX metadata extraction/scrubbing are planned extensions and are not part of the current image implementation.
+DOCX metadata extraction/scrubbing is a planned extension and not yet implemented.
 
 ## Future Extensions
 
-Potential future work includes:
-
-* PDF metadata extraction and scrubbing
 * DOCX metadata extraction and scrubbing
 * Batch file processing
-* Additional image metadata formats
-* More detailed risk analysis
-* Additional metadata detection
-* Improved preservation of selected metadata
+* File-level aggregate risk scoring (in progress)
 * Expanded automated tests
 
 ## Team Workflow
 
-The project uses separate Git branches for individual work.
-
-The `main` branch contains the shared project code.
-
-Feature branches can be used for isolated development before changes are merged into `main`.
-
-Example:
+The project uses separate Git branches for individual work, merged into `main`.
 
 ```bash
-git checkout -b person-a-exif
-```
-
-After completing a feature:
-
-```bash
+git checkout -b your-feature-branch
 git add .
-git commit -m "Implement image EXIF extraction and scrubbing"
-git push origin person-a-exif
+git commit -m "Describe your change"
+git push origin your-feature-branch
 ```
-
-The changes can then be reviewed and merged into `main`.
 
 ## License
 
 This project is developed as part of a hackathon project.
-
-
